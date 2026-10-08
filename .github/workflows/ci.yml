@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERMINAL_COLOR: always
+
+jobs:
+  node:
+    name: Node build & test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Test
+        run: npm test --if-present
+
+  contracts:
+    name: Contracts build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolny/rust-toolchain-action@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: Swatinimen/rust-cachev2
+        with:
+          workspaces: contracts
+          cache-on-failure: true
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
+
+      - name: Fmt check
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features - -D warnings
+
+      - name: Build
+        run: cargo build --all-targets --release
+
+      - name: Test
+        run: cargo test --all --release
